@@ -19,7 +19,7 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+### Haeram Han HH26735
 
 #### Introduction 
 
@@ -27,15 +27,29 @@ Paragraph or two introducing your datasets and variables, why they are interesti
 
 ```{R}
 # read your datasets in here, e.g., with read_csv()
-
+library(survival)
+library(locfit)
+heart <- data.frame(heart)
+stanford <- data.frame(stanford2)
+?stanford2
+?heart
+  
 ```
-
+  Dataset stanford or stanford2 have variables of id, time, status, age and t5. Id is the id number of the patient, time is the time of survival or censoring time in days, age is age in years, and t5 is the T5 mismatch score. The status is the censoring status which indicates dead or alive. dead=1 and, alive = 0.  The T5 score is the measure of degree of tissue incompatibility between the initial donor and recipient hearts. The Stanford dataset is the survival of patients on the waiting list for the Stanford heart transplant program. The Stanford data set comes from the heart data but in different format as well as more patients. The heart data contains the original data with less patients and created at an earlier year. The variables in heart are start, stop, event, age, year, surgery, transplant and id. Start is entry time and stop is the exit time. The event is the status during this time meaning that there was an event or not during the surgery. Age is the age they were minus 48 years. The year is the year of acceptance in years after 1 November 1967. Surgery states if the patient has gotten previous bypass surgery. Transplant is whether or not the patient has received a transplant before. Id is the patient's id during this program. 
+  This is interesting to me because I want to go into medical school and as I learn more about the heart, it is super interesting! I thought this is a perfect time to see some statistics about the heart. I've heard so much about heart surgery so I think it would be super interesting to see the survival times for surgeries. 
+  
 #### Tidying: Reshaping
 
 If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
 
 ```{R}
 # your tidying code (if applicable; can also wait until wrangling section)
+library(tidyr)
+heart %>% pivot_wider(names_from = id, values_from = surgery) -> heart1
+
+heart1 %>% pivot_longer(cols =(7:109), names_to = "id", values_to  = "surgery", values_drop_na = "TRUE")
+stanford %>% pivot_wider(names_from = id, values_from = status) -> stanford1
+stanford1 %>% pivot_longer(cols = (4:187), names_to = "id", values_to = "status", values_drop_na = "TRUE")
 ```
 
     
@@ -43,47 +57,102 @@ If your datasets are tidy already, demonstrate that you can reshape data with pi
 
 ```{R}
 # your joining code
-
+library(tidyverse)
+full <- full_join(heart, stanford, by =c("id"))
+full %>% select(-start)%>% select(-stop) %>% select(-age.x) %>% select(-year) -> full
+full$event <- ifelse(full$event == 0,"yes","no")
+full$status <- ifelse(full$status == 1, "alive", "dead")
+full$surgery <- ifelse(full$surgery == 0, "noprior", "prior")
+full$transplant <- ifelse(full$transplant == 0, "Y", "N")
+full <- full %>% rename("age" = age.y)
+full %>% filter("id" == "id")
+full[!duplicated(full$id), ] -> full 
 # your joining code
+anti_join(heart, stanford, by = "id")
+anti_join(stanford, heart, by = "id") ->uniqueID 
+semi_join(stanford,heart, by= "id")
+
+show(uniqueID)
 ```
 
 Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
 
+The original heart data set has 172 observations with 8 variables while stanford had 184 observations. I used full join because most of the data were similar however, there were specific data that were interesting to me so I thought it would be better to keep all the rows. I decided to join by "id" because the stanford data just added more patients from the heart data. These data are similar but had different variables.There were many duplicates of the ID column so I deleted these. The final data set ended up with 184 observations. I decided to change the columns a bit because some of the data were repetitive after joining. I deleted start, stop, year and age.x because time and age.y already stated these numbers without any math. 
+There are a couple of patient ids that did not make it in the full join and there were 81 observations. As a result, there are 81 unique values of ID in the stanford dataset and 0 unique values of ID in the heart dataset. The unique values are shown in the uniqueID dataset. There are 103 common observations between the two datasets.  
+The full join data set has 184 observations for 8 variables. No variables were dropped during the joining, this means all data was retained, this means that the 81 unique values of stanford are part of the full dataset. If observations were dropped, it could have been a problem because sample size would decreases and important data could be lost. However, later in the project NA was omitted because it affected the data, after omitting the NAs there were 98 observations meaning 86 observations were lost. 
 ####  Wrangling
 
 ```{R}
 # your wrangling code
-
+full %>% filter(transplant == "Y") 
+full %>% arrange(desc(time))
+full %>% group_by(status) %>% mutate(meant5 = mean(t5)) 
+full %>% select(transplant, t5)
+full %>% filter(transplant == "Y") %>% summarize(mean(t5))
+full %>% na.omit() -> full
 # your wrangling code
 
+full %>% summarize(meantime = mean(time), sdtime =sd(time), maxtime = max(time), meanage = mean(age), sdage = sd(age), medianage = (median(age)), mediant5 = median(t5), maxt5 = max(t5), meant5 = mean(t5), mint5= min(t5)) -> table1
+
+
+full %>% group_by(surgery) %>% summarize(median(time))
+full %>% group_by(status) %>% summarize(mean(t5))
+
+str_detect(full, "no")
+colSums(is.na(full))
 # your wrangling code
+full %>% group_by(event, surgery) %>% summarize(Avgtime = mean(time), Avgage = mean(age), avgt5 = mean(t5), sdtime = sd(time), sdage = sd(age), sdt5= sd(t5)) -> table2
+
+timehour <- function(x) {
+  x/60
+}
+full %>% summarize(timehour(time))
+
+library(kableExtra)
+full %>% group_by(event, surgery, status) %>% summarize(n())
+
+table1 %>% kable(digits = 3, align = 'l', col.names=str_to_title(names(.))) ->tablef1
+show(table1)
+table2 %>% kable(digits = 3, align = "llccccc", col.names=str_to_title(names(.))) -> tablef2
+show(table2)
 ```
 
 Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
 
+The procedure for wrangling, for the first 6 functions of the first chunk is to show what each function does. An example of what the procedure means for line code 84, by grouping by status of the full dataset we are mutating or creating a new row called "meant5" which states the mean of the t5 values based on the groups of status. Another example of what we are doing, for line code 89, we are finding summary statistics. Line 89 is summarizing the summary statistics for certain variables, in the full dataset, we are summarizing the mean, sd, maximum of age, as well as mean, sd, median of age and finally, the median, maximum value and the mean of t5. 
+The most interesting summary statistics I found is by grouping by surgery and event, finding the summary statistics of age, time and t5. I was really curious if any prior surgeries or events during the surgery caused an increase in time, was due to  to age or if the t5 value was affected. The highest average of time was no event during surgery but has had a previous surgery before whereas, the lowest average of time was no events during surgery and no previous surgery. This highest mean age was an event during surgery and previous surgery. What really interested me the most is that with no event during the surgery and previous surgery, this group had the highest t5 value. This means that the patients with  previous surgery and no events during the surgery had a higher organ incompatibility. This interested in me because this shows that having a previous surgery affects or not if your body will or will not reject the heart transplant. 
 
 #### Visualizing
 
 ```{R}
 # your plot 1
+ggplot(full, aes(x = age, y = t5, color = time))+ geom_point(size = 3, alpha= 0.5) + geom_line(aes(group=age)) + theme_dark()+ scale_y_continuous(breaks= seq(0,3,0.1)) +
+  ggtitle("age vs t5 value") + theme(plot.title= element_text(face= "bold", hjust =0.5))
 ```
 
 Your discussion of plot 1
+This plot is testing if there was a relationship between age and t5. This plot plots the age versus the t5 value. This plot also groups by age meaning seeing if by grouping by age it affects t5 and this plot is colored by time which shows how much time the heart transplant took of each point. This plot shows no relationship between age and t5. The plot also shows that time is not affected by age or t5, all of these values are all over the place indicating no relationship. However, there does seem to be a small relationship between age and t5 but, these seem like outliers because the t5 values seem to be in the same general area.
 
 ```{R}
 # your plot 2
+ggplot(full, aes(x= event)) + geom_bar(aes(y=age), stat ="summary", fun= mean, color = "blue", fill = "red") + scale_y_continuous(breaks = seq(0,45, 1.0)) + ggtitle("mean  age of an event occuring") + theme_dark()+ theme(plot.title = element_text(hjust = 0.5, face= "bold"))
 ```
 
 Your discussion of plot 2
+This box plot is comparing the mean age of event option. It seems like the average mean of whether an event occurring or not is similar. However, from previous code and this plot, the mean age of an event occurring is slightly higher than its counterpart. This shows that it is most likely that age doesn't isn't a major variable that affects whether or not an event occurs during surgery.  
 
 ```{R}
 # your plot 3
+ggplot(full, aes(x= surgery)) + geom_bar(aes(y=t5), stat ="summary", fun= mean, color = "cyan", fill = "purple")+ scale_y_continuous(breaks = seq(0,2, 0.25)) + ggtitle("History of surgery and T5 value") + theme_light()+ theme(plot.title = element_text(hjust = 0.5, face= "bold"))
+
 ```
 
 Your discussion of plot 3
+This bar plot focuses on whether or not a patient had previous surgery or not. This graph shows that the mean t5 value of whether or not a patient had previous surgery. A patient who has had no prior surgery had a lower t5 value than a prior surgery. 
 
 #### Concluding Remarks
 
+This project was a lot of work but it was really fun to see what we learned. I know python is next and am excited to see what is next! 
 If any!
 
 
